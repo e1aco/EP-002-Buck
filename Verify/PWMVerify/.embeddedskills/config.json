@@ -1,0 +1,17 @@
+{
+  "jlink": {
+    "device": "STM32F103C8",
+    "interface": "SWD",
+    "speed": "4000"
+  },
+  "keil": {
+    "project": "MDK-ARM/PWMVerify.uvprojx",
+    "target": "",
+    "log_dir": ".embeddedskills/build"
+  },
+  "logic": {
+    "channels": "0,1,2,3,4,5,6,7",
+    "sample_rate": 24000000,
+    "duration": 2.0
+  }
+}

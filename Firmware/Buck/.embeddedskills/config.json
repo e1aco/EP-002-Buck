@@ -1,0 +1,43 @@
+{
+  "keil": {
+    "project": "MDK-ARM/Buck.uvprojx",
+    "target": "Buck",
+    "log_dir": ".embeddedskills/build"
+  },
+  "jlink": {
+    "device": "STM32F103C8",
+    "interface": "SWD",
+    "speed": "4000"
+  },
+  "probe-rs": {
+    "chip": "STM32F103C8",
+    "protocol": "swd",
+    "probe": "",
+    "speed": "4000",
+    "connect_under_reset": false
+  },
+  "serial": {
+    "baudrate": 115200
+  },
+  "autodebug": {
+    "project": "MDK-ARM/Buck.uvprojx"
+  },
+  "logic": {
+    "channels": "5,7",
+    "sample_rate": 24000000,
+    "duration": 0.02
+  },
+  "pid_tune": {
+    "limits_preset": "generic",
+    "max_rounds": 10,
+    "required_stable_rounds": 1,
+    "settle_seconds": 0,
+    "thresholds": {
+      "avg_error_pct": 20.0,
+      "steady_state_error_pct": 1.0,
+      "overshoot": 1.0,
+      "undershoot": 1.0,
+      "zero_crossing_ratio": 0.6
+    }
+  }
+}

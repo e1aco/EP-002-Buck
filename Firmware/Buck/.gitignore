@@ -1,0 +1,6 @@
+# Keil 构建产物
+MDK-ARM/Buck/
+MDK-ARM/*.uvguix.*
+# embeddedskills 运行产物
+.embeddedskills/build/
+.embeddedskills/capture/

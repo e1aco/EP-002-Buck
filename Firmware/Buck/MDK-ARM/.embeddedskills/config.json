@@ -1,0 +1,17 @@
+{
+  "jlink": {
+    "device": "STM32F103C8",
+    "interface": "SWD",
+    "speed": "4000"
+  },
+  "logic": {
+    "channels": "5,7",
+    "sample_rate": 24000000,
+    "duration": 0.005
+  },
+  "keil": {
+    "project": "Buck.uvprojx",
+    "target": "",
+    "log_dir": ".embeddedskills/build"
+  }
+}

@@ -1,0 +1,51 @@
+# Keil MDK build output
+**/MDK-ARM/Buck/
+**/MDK-ARM/PWMVerify/
+**/Objects/
+**/Listings/
+**/*.uvguix.*
+**/*.uvguix.*.bak
+**/*.bak
+**/*.dep
+**/*.crf
+**/*.o
+**/*.d
+**/*.axf
+**/*.hex
+**/*.bin
+**/*.elf
+**/*.map
+**/*.lst
+**/*.lnp
+**/*.sct
+**/*.build_log.htm
+**/*.iex
+**/*.tra
+
+# J-Link user files
+**/JLinkLog.txt
+**/JLinkSettings.ini
+
+# embeddedskills runtime state and captures
+**/.embeddedskills/build/
+**/.embeddedskills/capture/
+**/.embeddedskills/state.json
+
+# CL project memory / captures
+**/.cl/
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+
+# Editor / IDE logs
+**/.vscode/keil-assistant.log
+**/.vscode/uv4.log
+**/.vscode/uv4.log.lock
+**/*.log
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
