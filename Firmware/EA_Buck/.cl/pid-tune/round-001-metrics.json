@@ -1,0 +1,58 @@
+{
+  "round": 1,
+  "setpoint": 3300.0,
+  "current_pid": {
+    "p": 50.0,
+    "i": 15000.0,
+    "d": 0.0
+  },
+  "metrics": {
+    "avg_error": 1.857307,
+    "max_error": 14.0,
+    "overshoot": 0.363636,
+    "undershoot": 0.424242,
+    "steady_state_error": 1.887969,
+    "zero_crossings": 3183,
+    "status": "OSCILLATING",
+    "setpoint": 3300.0,
+    "sample_count": 7856,
+    "oscillation_ratio": 0.405168
+  },
+  "verdict": {
+    "good_enough": false,
+    "failed_rules": [
+      "avg_error 1.86 > 1.20",
+      "steady_state_error 1.89 > 0.30",
+      "oscillation_ratio 0.41 > 0.30"
+    ],
+    "should_rollback": false,
+    "rollback_to": null,
+    "stable_rounds": 0,
+    "required_stable_rounds": 3,
+    "converged": false
+  },
+  "best": null,
+  "history": [
+    {
+      "round": 1,
+      "pid": {
+        "p": 50.0,
+        "i": 15000.0,
+        "d": 0.0
+      },
+      "status": "OSCILLATING",
+      "avg_error": 1.857307,
+      "overshoot": 0.363636,
+      "steady_state_error": 1.887969
+    }
+  ],
+  "raw_path": "E:\\Desktop\\elaco\\EA-002-Buck\\Firmware\\EA_Buck\\.cl\\capture\\rtt_steady.log",
+  "samples_used": 7856,
+  "samples_invalid": 0,
+  "sampling_note": null,
+  "budget": {
+    "max_rounds": 10,
+    "used": 1,
+    "left": 9
+  }
+}

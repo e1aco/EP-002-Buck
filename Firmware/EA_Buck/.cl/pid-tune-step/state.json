@@ -1,0 +1,53 @@
+{
+  "session": "2026-11-13T14:33:28",
+  "round": 1,
+  "current_pid": {
+    "p": 50.0,
+    "i": 15000.0,
+    "d": 0.0
+  },
+  "setpoint": 9000.0,
+  "best": {
+    "round": 1,
+    "pid": {
+      "p": 50.0,
+      "i": 15000.0,
+      "d": 0.0
+    },
+    "metrics": {
+      "avg_error": 55.35666666666667,
+      "max_error": 3998.0,
+      "overshoot": 0.7444444444444445,
+      "undershoot": 0.14444444444444443,
+      "steady_state_error": 4.333333333333333,
+      "zero_crossings": 111,
+      "status": "STABLE",
+      "setpoint": 9000.0,
+      "sample_count": 600,
+      "oscillation_ratio": 0.185
+    }
+  },
+  "history": [
+    {
+      "round": 1,
+      "pid": {
+        "p": 50.0,
+        "i": 15000.0,
+        "d": 0.0
+      },
+      "status": "STABLE",
+      "avg_error": 55.356667,
+      "overshoot": 0.744444,
+      "steady_state_error": 4.333333
+    }
+  ],
+  "stable_rounds": 1,
+  "converged": false,
+  "stopped": false,
+  "limits_preset": "generic",
+  "budget": {
+    "max_rounds": 10,
+    "used": 1,
+    "left": 9
+  }
+}

@@ -31,8 +31,10 @@
 **/.embeddedskills/capture/
 **/.embeddedskills/state.json
 
-# CL project memory / captures
-**/.cl/
+# CL session artifacts only (memory/state/require stay versioned)
+**/.cl/capture/
+**/.cl/dbg/
+**/.cl/backup_pregen_*/
 
 # Python
 **/__pycache__/

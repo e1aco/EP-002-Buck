@@ -1,0 +1,31 @@
+{
+  "keil": {
+    "project": "MDK-ARM/EA_Buck.uvprojx",
+    "target": "EA_Buck",
+    "log_dir": ".embeddedskills/build"
+  },
+  "jlink": {
+    "device": "STM32F103C8",
+    "interface": "SWD",
+    "speed": "4000"
+  },
+  "autodebug": {
+    "project": "MDK-ARM/EA_Buck.uvprojx"
+  },
+  "logic": {
+    "channels": "5,7",
+    "sample_rate": 12000000,
+    "duration": 0.5
+  },
+  "pid_tune": {
+    "limits_preset": "generic",
+    "max_rounds": 10,
+    "thresholds": {
+      "avg_error_pct": 1.0,
+      "steady_state_error_pct": 0.3,
+      "overshoot": 2.0,
+      "undershoot": 2.0,
+      "zero_crossing_ratio": 0.6
+    }
+  }
+}
