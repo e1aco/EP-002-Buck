@@ -14,5 +14,6 @@
 
 void APP_KEY_Init(void);
 void APP_KEY_Task(void);
+int8_t APP_KEY_GetDirection(void);
 
 #endif /* APP_KEY_H */

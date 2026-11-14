@@ -9,6 +9,7 @@
  ****************************************************************************/
 #include "app_display.h"
 #include "app_control.h"
+#include "app_key.h"
 #include "drv_oled.h"
 #include "stm32f1xx.h"
 
@@ -172,10 +173,18 @@ void APP_DISPLAY_Task(void)
   line[n] = 0;
   DRV_OLED_DrawString(0U, APP_DISPLAY_PAGE_STATE, line);
 
-  /* 第 4 行：设定电压 */
+  /* 第 4 行：设定电压 + 无极调压方向标识（++ 增 / -- 减） */
   n = app_display_text(line, 0U, "SET:");
   n = (uint8_t)(n + app_display_mv(&line[n], (int32_t)vref_mv));
-  n = app_display_text(line, n, "V");
+  n = app_display_text(line, n, "V ");
+  if (APP_KEY_GetDirection() > 0)
+  {
+    n = app_display_text(line, n, "++");
+  }
+  else
+  {
+    n = app_display_text(line, n, "--");
+  }
   line[n] = 0;
   DRV_OLED_DrawString(0U, APP_DISPLAY_PAGE_SET, line);
 
