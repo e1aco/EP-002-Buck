@@ -18,6 +18,9 @@ void APP_CONTROL_Update(void);
 void APP_CONTROL_SetVoltageMv(uint32_t voltage_mv);
 void APP_CONTROL_SetOutput(uint8_t on);
 uint8_t APP_CONTROL_GetOutput(void);
+uint32_t APP_CONTROL_GetVoltageMv(void);
+void APP_CONTROL_GetSnapshot(int32_t *vout_mv, int32_t *iout_ma, uint32_t *vref_mv,
+                             uint8_t *output_on, uint8_t *fault);
 uint8_t APP_CONTROL_IsFault(void);
 
 #endif /* APP_CONTROL_H */

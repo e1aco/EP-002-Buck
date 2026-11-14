@@ -137,6 +137,8 @@ static algo_pid_q16_t s_pid_curr;
 static uint32_t s_now_us;
 static uint32_t s_last_cycles;
 static uint16_t s_last_ccr;
+static int32_t s_last_vout_mv;
+static int32_t s_last_iout_ma;
 static uint32_t s_vref_mv;
 static uint32_t s_vref_target_mv;
 static uint8_t s_cascade;
@@ -338,6 +340,38 @@ uint8_t APP_CONTROL_GetOutput(void)
 }
 
 /**
+ * @说明: 读取当前设定电压
+ * @输出: 目标电压，单位 mV
+ */
+uint32_t APP_CONTROL_GetVoltageMv(void)
+{
+  return s_vref_target_mv;
+}
+
+/**
+ * @说明: 读取控制状态快照，供显示层使用
+ * @输入: vout_mv/iout_ma 输出电压电流；vref_mv 目标电压；output_on 输出使能；fault 故障
+ * @输出: 无，通过指针返回
+ * @注意: 临界区内一次性读取，避免主循环与 ISR 读到不一致的组合
+ */
+void APP_CONTROL_GetSnapshot(int32_t *vout_mv, int32_t *iout_ma, uint32_t *vref_mv,
+                             uint8_t *output_on, uint8_t *fault)
+{
+  uint32_t primask;
+
+  primask = __get_PRIMASK();
+  __disable_irq();
+
+  *vout_mv = s_last_vout_mv;
+  *iout_ma = s_last_iout_ma;
+  *vref_mv = s_vref_target_mv;
+  *output_on = s_output_on;
+  *fault = s_fault;
+
+  __set_PRIMASK(primask);
+}
+
+/**
  * @说明: ADC 完成后在中断内执行快速过压/过流保护
  * @输入: g_drv_adc_frame 已由 DRV_ADC_ConvCpltIsr 更新
  * @输出: 无，故障时锁存并关闭 PWM
@@ -359,6 +393,10 @@ void APP_CONTROL_ProtectIsr(void)
   raw_v = g_drv_adc_frame[DRV_ADC_IDX_V];
   iout_ma = (int32_t)(raw_i * BSP_ADC_I_MA_NUM / BSP_ADC_I_MA_DEN);
   vout_mv = (int32_t)(raw_v * BSP_ADC_V_MV_NUM / BSP_ADC_V_MV_DEN);
+
+  /* 供显示层读取的最新快照 */
+  s_last_vout_mv = vout_mv;
+  s_last_iout_ma = iout_ma;
 
   /* 过压保护：连续 3 次超过 13.5V 才锁存故障 */
   if (vout_mv > APP_CONTROL_OVP_MV)

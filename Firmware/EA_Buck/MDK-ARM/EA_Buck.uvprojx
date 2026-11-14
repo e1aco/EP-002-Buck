@@ -560,6 +560,11 @@
               <FilePath>..\module\app\app_control.c</FilePath>
             </File>
             <File>
+              <FileName>app_display.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\module\app\app_display.c</FilePath>
+            </File>
+            <File>
               <FileName>app_key.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\module\app\app_key.c</FilePath>

@@ -29,9 +29,9 @@
 /* USER CODE BEGIN Includes */
 #include "app_adc.h"
 #include "app_control.h"
+#include "app_display.h"
 #include "app_key.h"
 #include "app_telemetry.h"
-#include "drv_oled.h"
 #include "tim_test.h"
 /* USER CODE END Includes */
 
@@ -104,7 +104,7 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   APP_TELEMETRY_Init();
-  DRV_OLED_Probe();          // 临时：I2C 总线扫描，确认后删除
+  APP_DISPLAY_Init();
   APP_CONTROL_Init();
   APP_KEY_Init();
   // TEST_TIM_Init();        // [CL_TIMING_MEASURE]
@@ -119,6 +119,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     APP_KEY_Task();
+    APP_DISPLAY_Task();
     /* 控制已移入 ADC 完成中断（HAL_ADC_ConvCpltCallback → APP_CONTROL_Update） */
     // TEST_TIM_Sweep();      // [CL_TIMING_MEASURE]
     // TEST_TIM_Report();     // [CL_TIMING_MEASURE]
