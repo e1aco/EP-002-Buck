@@ -143,7 +143,7 @@ void TEST_TIM_Sweep(void)
   }
   s_last_sweep_ms = HAL_GetTick();
 
-  APP_CONTROL_SetVoltage((float)s_sweep_mv[s_sweep_index] * 0.001f);
+  APP_CONTROL_SetVoltageMv((uint32_t)s_sweep_mv[s_sweep_index]);
 
   primask = __get_PRIMASK();
   __disable_irq();
