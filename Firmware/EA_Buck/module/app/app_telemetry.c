@@ -13,7 +13,8 @@
 /* ==== 模块常量 ==== */
 /* 输出周期 1ms = 1kHz：电压环 fc≈50Hz、τ≈3.2ms，建立过程 10–16ms，
  * 1kHz 可给出 10–16 个点，足以定位超调峰值
- * @来源 memory CTRL_VOLT_KP=0.050 推导：fc=50Hz → τ=1/(2π×50)=3.18ms */
+ * @来源 memory CTRL_VOLT_KP=0.050 推导：fc=50Hz → τ=1/(2π×50)=3.18ms
+ * 注：时序测量期间临时降为 1Hz，避免 40KB/s 遥测挤占 RTT 缓冲冲掉 [TM] 行 */
 #define APP_TELEMETRY_PERIOD_US 1000U
 
 /* 单行最长 62 字符（t 10 + sp 5 + pv 5 + ccr 4 + err 6 + kp 5 + ki 5

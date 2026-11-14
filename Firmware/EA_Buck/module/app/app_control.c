@@ -14,6 +14,7 @@
 #include "bsp_adc_scale.h"
 #include "drv_adc.h"
 #include "drv_tim.h"
+#include "tim_test.h"
 
 /* ==== 模块常量 ==== */
 /* 要求 PWM 占空比 ≤80%
@@ -539,5 +540,7 @@ void APP_CONTROL_Task(void)
   }
 
   s_adc_pending = 0U;
+  // TEST_TIM_Start(TEST_TIM_SLOT_CTRL);   // [CL_TIMING_MEASURE]
   APP_CONTROL_Update();
+  // TEST_TIM_Stop(TEST_TIM_SLOT_CTRL);    // [CL_TIMING_MEASURE]
 }

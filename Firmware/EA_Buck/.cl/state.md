@@ -23,10 +23,12 @@
 | 2026-11-13 | run | 安全/功率 | module/app/app_control.c:147 | 启动/电压外环/电流内环增益均为推导初值，未在实机整定；3A 恒流未验证 | 是 | [!] |
 | 2026-11-13 | run | 安全/功率 | module/app/app_control.c:242 | OVP=13.5V、OC=3.3A 阈值与 3 点去抖未注入实测 | 是 | [!] |
 | 2026-11-13 | run | 硬件时序/电气 | module/bsp/bsp_adc_scale.h:15 | ADC 标定复用旧 Buck 同板值，EA_Buck 本板未重新三点标定 | 是 | [ ] |
-| 2026-11-13 | run | 实时性/数值 | module/app/app_control.c:206 | 10kHz ISR 已实测且超 ≤10us 预算；详见时序表 | 是 | [!] |
+| 2026-11-13 | run | 实时性/数值 | module/app/app_control.c:206 | 10kHz ISR 已实测且超 ≤10us 预算；详见时序表 | 是 | [x] |
 | 2026-11-13 | cleanup | 安全/功率 | module/drv/drv_adc.c:82 | 正常 ADC/DMA 链路已复测；DRV_TIM_Stop() 故障停机路径未注入实测，需人工确认或故障注入 | 是 | [!] |
 | 2026-11-13 | cleanup | 硬件时序/电气 | module/drv/drv_tim.c:79 | 外部将启动 CCR1 改为 300（8.3%）并烧录；J-Link 读回 CCR1=300，ADC frame I=0/V=10，低占空比采样已失效/未验证；按用户要求保留源码 | 是 | [!] |
 | 2026-11-13 | run | 安全/功率 | app_control.c 电流环 | 电流内环独立阶跃需旁路电压外环，带载 317mA 时给定 1A 会向输出电容灌流使 vout 上升至 OVP；无源/恒阻负载下风险更高 | 是 | [!] |
+| 2026-11-14 | tim | 时序基准 | .cl/state.md 时序表 | 时钟基准未做逻辑分析仪校准（设备未连接，logic_scan 报 0 设备）；按理论 72MHz 换算。依据 HSE 8MHz ±20ppm × PLL9 推导偏差 <0.01%，远小于 5% 阈值 | 是 | [ ] |
+| 2026-11-14 | tim | 实时性 | module/app/app_control.c | Update 最坏 61.2us，若搬回 ISR 则 61.2+5.6=66.8us 占 100us 周期 67%（超软限 30%、超硬限 50%）；搬 ISR 前必须先定点化 | 是 | [ ] |
 
 ### 时序测量表 (Timing Budget)
 > 预算三型 / 默认指标（预算比例·总利用率上限·绝对裕量·词表）单源 = `details/tim.md`「默认指标」+ `details/probe.md`。
@@ -43,12 +45,13 @@
 | 操作 | 位置/探针位置 | 理论值(依据) | 预算/判据 | 测试 | 实测值(日期) | 利用率 | 状态 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | SysTick_Handler (1kHz) | Core/Src/stm32f1xx_it.c:SysTick_Handler | 周期 1000us；HAL_IncTick 估算 <1us（指令数×72MHz） | ≤100us | 软件(DWT) 验收前必测 | | ~0.1% | [ ] |
-| DMA1_Channel1_IRQHandler | Core/Src/stm32f1xx_it.c:DMA1_Channel1_IRQHandler | 仅 TC 中断 10kHz；ISR 估算 <3us（HAL_DMA_IRQHandler 路径） | ≤10us | 软件(DWT) + J-Link RTT（2026-11-13） | 36.8us max（2583–2652 cyc @72MHz）；14.5%–51.4% duty；超预算 | ~36.8% | [!] |
+| DMA1_Channel1_IRQHandler | Core/Src/stm32f1xx_it.c:DMA1_Channel1_IRQHandler | 仅 TC 中断 10kHz；PID 已移出，ISR 只做拷帧+保护+计数 | ≤10us | 软件(DWT)+RTT（2026-11-14） | **5.6us max / 5.15us avg**（PWM 运行 D=14.5%）；旧值 36.8us 系 PID 在 ISR 内时测得，作废 | ~5.2% | [x] |
+| APP_CONTROL_Update（主循环控制计算） | module/app/app_control.c:APP_CONTROL_Task | 10kHz 事件驱动；级联双环 float PID + 软启动 | ≤30us（10kHz×30%） | 软件(DWT)+RTT（2026-11-14） | **61.2us max / 34.1us avg**（PWM 运行 D=14.5%）；max 含 1Hz 遥测输出的那一拍 | ~34.1% | [x] |
 | ADC1 2ch 转换（TIM4_CC4 触发） | ADC1/DMA1_Channel1 | 2×(13.5+12.5)/12MHz = 4.33us @10kHz（占周期 4.3%） | ≤10us | 硬件(逻辑分析仪) 仅首次测 | | 非CPU | [ ] |
 | TIM1_CH1 PWM 输出 | PA8 | 72MHz/(0+1)/(3599+1) = 20kHz（周期 50us） | 频率误差 ≤1% | 逻辑分析仪 | 19.9999–20.000kHz；10%–90% 步进（Ch7，2026-11-12） | 非CPU | [x] |
 | TIM4_CC4 ADC 触发 | PB9 | 10kHz；CCR4 动态上管中点（见 memory） | 与 TIM1 同步且相位固定；上管中点 | 逻辑分析仪 | 10.000kHz；50%：PB9 下降沿=CC4，11.959us after PA8 rise，采样中心≈12.52us vs 上管中点≈12.49us（24MHz）；10%–90% 步进偏差均值 +0.042us，范围 -0.022..+0.105us（12MHz，Ch5/Ch7，2026-11-12）；清理后 50% 均值 +0.0427us，范围 -0.0215..+0.0625us（2026-11-13）；09:10+ 外部 CCR1=300 未纳入本表 | 非CPU | [x] |
 | USART1 115200 单字节 TX | PA9 | 10bit/115200 = 86.8us/byte | ≤1ms/帧 | 软件(DWT) 验收前必测 | | 非周期 | [ ] |
-| **Σ** | | | | | | **≤ 70%** | |
+| **Σ** | | | | | | **39.3%**（5.2 + 34.1）**≤ 70%** | |
 
 ## 二、已完成（滚动窗口）
 
@@ -67,4 +70,5 @@
 
 - TIM1_CH1 PWM 输出 → 见「一、时序测量表」（2026-11-12）
 - TIM4_CC4 ADC 触发 → 见「一、时序测量表」（2026-11-12 / 2026-11-13）
-- DMA1_Channel1_IRQHandler → 见「一、时序测量表」（2026-11-13）
+- DMA1_Channel1_IRQHandler → 见「一、时序测量表」（2026-11-13 / 2026-11-14 重测）
+- APP_CONTROL_Update → 见「一、时序测量表」（2026-11-14）

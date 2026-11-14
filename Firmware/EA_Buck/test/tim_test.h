@@ -16,7 +16,12 @@
 /* slot1 = DMA1_Channel1_IRQHandler 全程
  * @来源 memory CTRL_LOOP_HZ=10000 推导：DMA ISR 10kHz */
 #define TEST_TIM_SLOT_DMA   1U
-#define TEST_TIM_SLOT_COUNT 2U
+
+/* slot2 = APP_CONTROL_Update 全程（主循环控制计算）
+ * @来源 memory CTRL_LOOP_HZ=10000 推导：每拍一次，周期 100us */
+#define TEST_TIM_SLOT_CTRL  2U
+
+#define TEST_TIM_SLOT_COUNT 3U
 
 #if CL_TIMING_MEASURE
 void TEST_TIM_Init(void);
