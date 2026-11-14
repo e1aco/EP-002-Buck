@@ -2,19 +2,18 @@
  * @文件: app_control.c
  * @作者: cl
  * @日期: 2026-11-13
- * @版本: v2.0
- * @说明: Buck 主循环双环控制、DWT 实际 dt、软启动与快速保护
+ * @版本: v3.0
+ * @说明: Buck 中断内双环控制（定点 Q16）、DWT 实际 dt、软启动与快速保护
  * @平台: STM32F103C8T6
- * @依赖: algo_pid, bsp_adc_scale, drv_adc, drv_tim, stm32f1xx
+ * @依赖: algo_pid_q16, bsp_adc_scale, drv_adc, drv_tim, stm32f1xx
  ****************************************************************************/
 #include "app_control.h"
 #include "stm32f1xx.h"
-#include "algo_pid.h"
+#include "algo_pid_q16.h"
 #include "app_telemetry.h"
 #include "bsp_adc_scale.h"
 #include "drv_adc.h"
 #include "drv_tim.h"
-#include "tim_test.h"
 
 /* ==== 模块常量 ==== */
 /* 要求 PWM 占空比 ≤80%
@@ -104,15 +103,40 @@
 #define APP_CONTROL_VOLT_KP_MILLI      ((uint16_t)(APP_CONTROL_VOLT_KP * 1000.0f))
 #define APP_CONTROL_VOLT_KI_MILLI      ((uint16_t)(APP_CONTROL_VOLT_KI * 1000.0f))
 
+/* ==== 定点化参数（单位：mV / mA / CCR） ==== */
+/* 换算：Kp[CCR/mV] = Kp[duty/V] × 3600 / 1000
+ *       Kp_Q16 = Kp[整数单位] × 2^16
+ *       Ki_Q20 = Ki[整数单位] × 0.032768 × 2^20（吸收 1e-6/2 因子）
+ * @来源 本设计：Python 换算并校验单拍误差 <0.5%（2026-11-14） */
+#define APP_CONTROL_START_KP_Q         472        /* 0.0072 CCR/mV */
+#define APP_CONTROL_START_KI_Q         1236951    /* 36 CCR/(mV·s) */
+#define APP_CONTROL_VOLT_KP_Q          3277       /* 0.05 mA/mV */
+#define APP_CONTROL_VOLT_KI_Q          515396     /* 15 mA/(mV·s) */
+#define APP_CONTROL_CURR_KP_Q          4719       /* 0.072 CCR/mA */
+#define APP_CONTROL_CURR_KI_Q          7916484    /* 230.4 CCR/(mA·s) */
+
+/* 输出限幅（整数单位） */
+#define APP_CONTROL_CCR_MAX            2880       /* 0.8 × 3600 */
+#define APP_CONTROL_IREF_MAX_MA        3000       /* 3A 恒流限幅 */
+/* 级联切入门限：占空比 10% = 360 码
+ * @来源 memory CTRL_CURRENT_VALID_DUTY=0.10 推导：0.10 × 3600 */
+#define APP_CONTROL_CURRENT_VALID_CCR  360
+
+/* DWT 计数换算：us = cycles × 65536/72 >> 16（910/65536 = 0.01389 ≈ 1/72）
+ * @来源 memory CLOCK_HCLK=72MHz 推导：65536/72 = 910.2 */
+#define APP_CONTROL_DWT_RECIP          910U
+
+/* 软启动换算：slew_mv = dt_us × 240/1000；251658/2^20 = 0.24
+ * @来源 memory CTRL_VREF_SLEW=240mV/ms 推导：240/1000 × 2^20 = 251658 */
+#define APP_CONTROL_SLEW_RECIP         251658U
+
 /* ==== 模块变量 ==== */
-static algo_pid_t s_pid_start;
-static algo_pid_t s_pid_volt;
-static algo_pid_t s_pid_curr;
-static uint64_t s_now_us;
+static algo_pid_q16_t s_pid_start;
+static algo_pid_q16_t s_pid_volt;
+static algo_pid_q16_t s_pid_curr;
+static uint32_t s_now_us;
 static uint32_t s_last_cycles;
 static uint16_t s_last_ccr;
-static volatile uint8_t s_adc_pending;
-static volatile uint32_t s_overrun;
 static uint32_t s_vref_mv;
 static uint32_t s_vref_target_mv;
 static uint8_t s_cascade;
@@ -124,24 +148,14 @@ static uint8_t s_ovp_count;
 
 /* ==== 内部函数 ==== */
 /**
- * @说明: 按给定参数初始化一个 PID 实例
- * @输入: pid 实例；kp/ki 增益；upper/lower 输出限幅
+ * @说明: 按给定定点参数初始化一个 PID 实例
+ * @输入: pid 实例；kp_q/ki_q 增益；upper/lower 输出限幅（输出单位）
  * @输出: 无
  */
-static void app_control_init_pid(algo_pid_t *pid, float kp, float ki,
-                                 float upper, float lower)
+static void app_control_init_pid(algo_pid_q16_t *pid, int32_t kp_q, int32_t ki_q,
+                                 int32_t upper, int32_t lower)
 {
-  algo_pid_init_t init = {0};
-
-  init.kp = kp;
-  init.ki = ki;
-  init.kd = 0.0f;
-  init.setpoint = 0.0f;
-  init.output_upper_limit = upper;
-  init.output_lower_limit = lower;
-  init.default_output = 0.0f;
-
-  ALGO_PID_Init(pid, &init);
+  ALGO_PID_Q16_Init(pid, kp_q, ki_q, lower, upper);
 }
 
 /**
@@ -191,18 +205,25 @@ static void app_control_report(int32_t vout_mv, int32_t iout_ma, uint16_t ccr)
 }
 
 /**
- * @说明: 读取 DWT 周期计数并换算为距上次调用的微秒数
+ * @说明: 读取 DWT 周期计数并换算为距上次调用的微秒数（整数倒数乘法）
  * @输出: 实际经过时间，单位 us
  * @注意: CYCCNT 为 32 位，调用间隔需远小于 59.6s 回绕周期
+ * @注意: 先钳位到 DT_MAX 再乘，避免 cycles×910 溢出 32 位
  */
 static uint32_t app_control_elapsed_us(void)
 {
   uint32_t now_cycles = DWT->CYCCNT;
   uint32_t delta_cycles = now_cycles - s_last_cycles;
+  uint32_t limit_cycles = APP_CONTROL_DT_MAX_US * APP_CONTROL_DWT_MHZ;
 
   s_last_cycles = now_cycles;
 
-  return (delta_cycles + (APP_CONTROL_DWT_MHZ / 2U)) / APP_CONTROL_DWT_MHZ;
+  if (delta_cycles > limit_cycles)
+  {
+    delta_cycles = limit_cycles;
+  }
+
+  return (delta_cycles * APP_CONTROL_DWT_RECIP) >> 16;
 }
 
 /* ==== 接口函数 ==== */
@@ -216,19 +237,17 @@ static uint32_t app_control_elapsed_us(void)
  */
 void APP_CONTROL_Init(void)
 {
-  app_control_init_pid(&s_pid_start, APP_CONTROL_START_KP, APP_CONTROL_START_KI,
-                       APP_CONTROL_DUTY_MAX, 0.0f);
-  app_control_init_pid(&s_pid_volt, APP_CONTROL_VOLT_KP, APP_CONTROL_VOLT_KI,
-                       APP_CONTROL_ILIMIT_A, 0.0f);
-  app_control_init_pid(&s_pid_curr, APP_CONTROL_CURR_KP, APP_CONTROL_CURR_KI,
-                       APP_CONTROL_DUTY_MAX, 0.0f);
+  app_control_init_pid(&s_pid_start, APP_CONTROL_START_KP_Q, APP_CONTROL_START_KI_Q,
+                       APP_CONTROL_CCR_MAX, 0);
+  app_control_init_pid(&s_pid_volt, APP_CONTROL_VOLT_KP_Q, APP_CONTROL_VOLT_KI_Q,
+                       APP_CONTROL_IREF_MAX_MA, 0);
+  app_control_init_pid(&s_pid_curr, APP_CONTROL_CURR_KP_Q, APP_CONTROL_CURR_KI_Q,
+                       APP_CONTROL_CCR_MAX, 0);
 
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
   DWT->CYCCNT = 0U;
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
   s_last_cycles = 0U;
-  s_adc_pending = 0U;
-  s_overrun = 0U;
 
   s_now_us = 0U;
   s_vref_mv = 0U;
@@ -244,23 +263,28 @@ void APP_CONTROL_Init(void)
 }
 
 /**
- * @说明: 设置输出电压目标值，超范围时钳位到 3.3V–12V
- * @输入: voltage 目标电压，单位 V
+ * @说明: 设置输出电压目标值（整数接口），超范围时钳位到 3.3V–12V
+ * @输入: voltage_mv 目标电压，单位 mV
  * @输出: 无
  * @注意: 目标值经软启动斜坡后才进入电压环
+ * @注意: 全整数接口，避免控制链引入软浮点
  */
-void APP_CONTROL_SetVoltage(float voltage)
+void APP_CONTROL_SetVoltageMv(uint32_t voltage_mv)
 {
-  if (voltage < 3.3f)
+  if (voltage_mv < APP_CONTROL_VREF_MIN_MV)
   {
-    voltage = 3.3f;
+    voltage_mv = APP_CONTROL_VREF_MIN_MV;
   }
-  else if (voltage > 12.0f)
+  else if (voltage_mv > APP_CONTROL_VREF_MAX_MV)
   {
-    voltage = 12.0f;
+    voltage_mv = APP_CONTROL_VREF_MAX_MV;
+  }
+  else
+  {
+    /* 在范围内，直接使用 */
   }
 
-  s_vref_target_mv = (uint32_t)(voltage * 1000.0f + 0.5f);
+  s_vref_target_mv = voltage_mv;
 }
 
 /**
@@ -286,9 +310,9 @@ void APP_CONTROL_SetOutput(uint8_t on)
     s_output_on = 0U;
     s_vref_mv = 0U;
     s_cascade = 0U;
-    ALGO_PID_Reset(&s_pid_start);
-    ALGO_PID_Reset(&s_pid_volt);
-    ALGO_PID_Reset(&s_pid_curr);
+    ALGO_PID_Q16_Reset(&s_pid_start);
+    ALGO_PID_Q16_Reset(&s_pid_volt);
+    ALGO_PID_Q16_Reset(&s_pid_curr);
     s_last_ccr = 0U;
     DRV_TIM_SetDuty(0U);
   }
@@ -376,11 +400,11 @@ void APP_CONTROL_ProtectIsr(void)
 }
 
 /**
- * @说明: 主循环控制入口，执行软启动和电压/电流双环
+ * @说明: 中断内控制入口，执行软启动和电压/电流双环（定点 Q16）
  * @输入: g_drv_adc_frame 已由 DRV_ADC_ConvCpltIsr 更新
  * @输出: 无，更新 TIM1 CCR 与故障状态
- * @注意: 由 APP_CONTROL_Task 在主循环按 DMA 事件调用
- * @注意: 启动阶段用电压环，占空比≥10% 后切电流内环
+ * @注意: 由 HAL_ADC_ConvCpltCallback 在 DMA 完成中断内调用（10kHz）
+ * @注意: 启动阶段用电压环，占空比≥10%（360 码）后切电流内环
  * @注意: 电流采样在占空比 <10% 时无效，因此内环启用前必须用电压环启动
  * @来源 memory CTRL_LOOP_HZ=10000 推导：ADC 10kHz/1
  * @来源 memory ADC_V_SCALE=4.4233mV/码 实测 2026-11-04
@@ -392,11 +416,8 @@ void APP_CONTROL_Update(void)
   uint16_t raw_v;
   int32_t iout_ma;
   int32_t vout_mv;
-  float iout;
-  float vout;
-  float iref;
-  float duty;
-  uint16_t ccr;
+  int32_t iref_ma;
+  int32_t duty_ccr;
   uint32_t dt_us;
   uint32_t slew_mv;
 
@@ -406,24 +427,18 @@ void APP_CONTROL_Update(void)
     return;
   }
 
-  /* 使用 DWT 实际经过时间，异常阻塞时限制 PID 看到的最大 dt */
+  /* 使用 DWT 实际经过时间（整数倒数换算），异常阻塞时已在换算内钳位 */
   dt_us = app_control_elapsed_us();
-  if (dt_us > APP_CONTROL_DT_MAX_US)
-  {
-    dt_us = APP_CONTROL_DT_MAX_US;
-  }
   if (dt_us == 0U)
   {
     dt_us = 1U;
   }
   s_now_us += dt_us;
 
-  /* 读取本周期电流/电压采样并换算为 A/V */
+  /* 读取本周期电流/电压采样并换算为 mA / mV（整数） */
   DRV_ADC_GetLatestFrame(&raw_i, &raw_v);
   iout_ma = (int32_t)(raw_i * BSP_ADC_I_MA_NUM / BSP_ADC_I_MA_DEN);
   vout_mv = (int32_t)(raw_v * BSP_ADC_V_MV_NUM / BSP_ADC_V_MV_DEN);
-  iout = (float)iout_ma * 0.001f;
-  vout = (float)vout_mv * 0.001f;
 
   /* 故障锁存后保持 PWM 关闭，直到重新初始化；仍推一帧遥测便于定位停机瞬间 */
   if (s_fault != 0U)
@@ -445,8 +460,8 @@ void APP_CONTROL_Update(void)
     return;
   }
 
-  /* 目标电压软启动：按实际 dt 保持 240mV/ms 斜坡 */
-  slew_mv = (APP_CONTROL_VREF_SLEW_MV * dt_us + 50U) / 100U;
+  /* 目标电压软启动：按实际 dt 保持 240mV/ms 斜坡（整数倒数乘法） */
+  slew_mv = (dt_us * APP_CONTROL_SLEW_RECIP) >> 20;
   if (slew_mv == 0U)
   {
     slew_mv = 1U;
@@ -474,73 +489,38 @@ void APP_CONTROL_Update(void)
 
   if (s_cascade == 0U)
   {
-    /* 启动阶段：电压环直接输出占空比 */
-    ALGO_PID_SetSetpoint(&s_pid_start, (float)s_vref_mv * 0.001f);
-    duty = ALGO_PID_Compute1(&s_pid_start, vout, s_now_us);
+    /* 启动阶段：电压环直接输出 CCR */
+    s_pid_start.setpoint = (int32_t)s_vref_mv;
+    duty_ccr = ALGO_PID_Q16_Compute(&s_pid_start, vout_mv, s_now_us);
 
-    /* 占空比达到 10% 后电流采样有效，准备切入电流内环 */
-    if (duty >= APP_CONTROL_CURRENT_VALID_DUTY)
+    /* 占空比达到 10%（360 码）后电流采样有效，切入电流内环 */
+    if (duty_ccr >= APP_CONTROL_CURRENT_VALID_CCR)
     {
       s_cascade = 1U;
 
-      /* 无扰切换：外环积分器预置为实测电流，内环预置为当前占空比 */
-      ALGO_PID_SetSetpoint(&s_pid_volt, (float)s_vref_mv * 0.001f);
-      s_pid_volt.i_term = iout;
-      s_pid_volt.last_error = (float)s_vref_mv * 0.001f - vout;
-      s_pid_volt.last_time_us = s_now_us;
-      s_pid_curr.i_term = duty;
-      s_pid_curr.last_time_us = s_now_us;
+      /* 无扰切换：外环积分预置为实测电流，内环预置为当前占空比 */
+      s_pid_volt.setpoint = (int32_t)s_vref_mv;
+      s_pid_volt.i_term_q = iout_ma << 16;
+      s_pid_volt.last_error = (int32_t)s_vref_mv - vout_mv;
+      s_pid_volt.last_us = s_now_us;
+      s_pid_volt.started = 1U;
+      s_pid_curr.i_term_q = duty_ccr << 16;
+      s_pid_curr.last_us = s_now_us;
+      s_pid_curr.started = 1U;
     }
   }
   else
   {
-    /* 正常阶段：电压外环给 0–3A 电流给定，电流内环给占空比 */
-    ALGO_PID_SetSetpoint(&s_pid_volt, (float)s_vref_mv * 0.001f);
-    iref = ALGO_PID_Compute1(&s_pid_volt, vout, s_now_us);
-    ALGO_PID_SetSetpoint(&s_pid_curr, iref);
-    duty = ALGO_PID_Compute1(&s_pid_curr, iout, s_now_us);
+    /* 正常阶段：电压外环给 0–3000mA 电流给定，电流内环给 CCR */
+    s_pid_volt.setpoint = (int32_t)s_vref_mv;
+    iref_ma = ALGO_PID_Q16_Compute(&s_pid_volt, vout_mv, s_now_us);
+    s_pid_curr.setpoint = iref_ma;
+    duty_ccr = ALGO_PID_Q16_Compute(&s_pid_curr, iout_ma, s_now_us);
   }
 
-  /* 两个 PID 的输出限幅已各自生效，这里只做 duty→CCR 换算 */
-  ccr = (uint16_t)(duty * APP_CONTROL_CCR_PER_DUTY + 0.5f);
+  /* 写入 CCR（两个 PID 的输出限幅已各自生效） */
+  s_last_ccr = (uint16_t)duty_ccr;
+  DRV_TIM_SetDuty((uint16_t)duty_ccr);
 
-  /* 写入 CCR */
-  s_last_ccr = ccr;
-  DRV_TIM_SetDuty(ccr);
-
-  app_control_report(vout_mv, iout_ma, ccr);
-}
-
-/**
- * @说明: DMA 完成中断内标记一帧新数据，并统计主循环来不及消费的次数
- * @输出: 无
- * @注意: 只置标志与计数，不在中断内运行 PID
- */
-void APP_CONTROL_OnAdcIsr(void)
-{
-  /* 上一帧还没被主循环消费就来了新帧，记一次丢帧 */
-  if (s_adc_pending != 0U)
-  {
-    s_overrun++;
-  }
-
-  s_adc_pending = 1U;
-}
-
-/**
- * @说明: 主循环控制任务，有新帧时运行一次控制
- * @输出: 无
- * @注意: 无新帧时立即返回；积压多帧时只处理最新一帧
- */
-void APP_CONTROL_Task(void)
-{
-  if ((s_ready == 0U) || (s_adc_pending == 0U))
-  {
-    return;
-  }
-
-  s_adc_pending = 0U;
-  // TEST_TIM_Start(TEST_TIM_SLOT_CTRL);   // [CL_TIMING_MEASURE]
-  APP_CONTROL_Update();
-  // TEST_TIM_Stop(TEST_TIM_SLOT_CTRL);    // [CL_TIMING_MEASURE]
+  app_control_report(vout_mv, iout_ma, s_last_ccr);
 }

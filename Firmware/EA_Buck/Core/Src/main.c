@@ -119,7 +119,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     APP_KEY_Task();
-    APP_CONTROL_Task();
+    /* 控制已移入 ADC 完成中断（HAL_ADC_ConvCpltCallback → APP_CONTROL_Update） */
     // TEST_TIM_Sweep();      // [CL_TIMING_MEASURE]
     // TEST_TIM_Report();     // [CL_TIMING_MEASURE]
   }

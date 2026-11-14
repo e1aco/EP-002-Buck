@@ -263,7 +263,8 @@ void I2C1_ER_IRQHandler(void)
 
 /* ==== HAL 回调分发 ==== */
 /**
- * @说明: ADC1 DMA 传输完成回调，分发采样、快速保护与控制事件
+ * @说明: ADC1 DMA 传输完成回调，分发采样、快速保护与双环控制（定点，10kHz）
+ * @注意: 控制在中断内执行，实测 Update 约 10us，占 100us 周期 10%
  */
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
@@ -271,7 +272,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
   {
     DRV_ADC_ConvCpltIsr();
     APP_CONTROL_ProtectIsr();
-    APP_CONTROL_OnAdcIsr();
+    APP_CONTROL_Update();
   }
 }
 

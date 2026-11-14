@@ -13,11 +13,9 @@
 #include <stdint.h>
 
 void APP_CONTROL_Init(void);
-void APP_CONTROL_Task(void);
 void APP_CONTROL_ProtectIsr(void);
-void APP_CONTROL_OnAdcIsr(void);
 void APP_CONTROL_Update(void);
-void APP_CONTROL_SetVoltage(float voltage);
+void APP_CONTROL_SetVoltageMv(uint32_t voltage_mv);
 void APP_CONTROL_SetOutput(uint8_t on);
 uint8_t APP_CONTROL_GetOutput(void);
 uint8_t APP_CONTROL_IsFault(void);

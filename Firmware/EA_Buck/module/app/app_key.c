@@ -14,14 +14,14 @@
 /* ==== 模块常量 ==== */
 #define APP_KEY_VOLT_COUNT 4U
 
-/* 档位表：3.3V → 5V → 9V → 12V 循环
+/* 档位表：3.3V → 5V → 9V → 12V 循环（整数 mV，避免控制链引入浮点）
  * @来源 memory CTRL_VREF_MIN_MV=3300 / CTRL_VREF_MAX_MV=12000 你 2026-11-13 */
-static const float s_app_key_volts[APP_KEY_VOLT_COUNT] =
+static const uint32_t s_app_key_mv[APP_KEY_VOLT_COUNT] =
 {
-  3.3f,
-  5.0f,
-  9.0f,
-  12.0f
+  3300U,
+  5000U,
+  9000U,
+  12000U
 };
 
 /* ==== 模块变量 ==== */
@@ -37,7 +37,7 @@ static uint8_t s_app_key_index;
 void APP_KEY_Init(void)
 {
   s_app_key_index = 0U;
-  APP_CONTROL_SetVoltage(s_app_key_volts[s_app_key_index]);
+  APP_CONTROL_SetVoltageMv(s_app_key_mv[s_app_key_index]);
   APP_CONTROL_SetOutput(0U);
 }
 
@@ -61,7 +61,7 @@ void APP_KEY_Task(void)
       s_app_key_index = 0U;
     }
 
-    APP_CONTROL_SetVoltage(s_app_key_volts[s_app_key_index]);
+    APP_CONTROL_SetVoltageMv(s_app_key_mv[s_app_key_index]);
   }
 
   /* KEY1：开/关输出 */

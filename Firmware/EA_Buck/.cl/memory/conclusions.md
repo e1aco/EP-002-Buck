@@ -6,7 +6,9 @@
 - VOLT_LOOP = 已否决: 仅电压环、3A跳闸不恒流 依据:用户改为级联控制 日期:2026-11-13 来源:你
 - CASCADE = 已决策: 电压外环→电流内环，3A恒流限幅、3.3A跳闸、<10%占空比电压环启动 依据:你 日期:2026-11-13 来源:你
 - ISR_TIMING = 已实测: DMA ISR 5.6us max/5.15us avg @10kHz（PID 移出后）；旧 36.8us 作废 依据:DWT 2026-11-14
-- CTRL_TIME = 已实测: APP_CONTROL_Update 34.1us avg/61.2us max @10kHz，占 34% 依据:DWT 2026-11-14
+- CTRL_TIME = 已实测: 定点版 ISR 全程 12.87us avg/39.5us max @10kHz，占 12.9% 依据:DWT 2026-11-14
+- FIXED_POINT = 已实现: PID 改 Q16 定点、控制移入 ADC ISR，软浮点清零 Code 18870→16322 依据:map
+- FIXED_PERF = 已验证: 7 种上升定点 vs float 超调差≤0.18%、建立差≤2ms、稳态≤2mV 依据:实测
 - CURRENT_SENSE = 已解决: 带载 317mA@3.3V、1211mA@12V 线性，采样正常 依据:RTT 2026-11-13
 - I2284_CAUSE = 已解决: 早前 3.79A 系 50% 开环、采样点落上管导通瞬间的开关噪声 依据:RTT
 - RTT_TOOLING = 已实测: read-mem 调用会 halt 目标不恢复；用 RTTLogger 采集 1kHz 无丢帧
