@@ -60,7 +60,7 @@
 ### 已完成任务 (Done)
 > 格式：`- [标记] 标题（起 YYYY-MM-DD | 止 YYYY-MM-DD | 验收 YYYY-MM-DD）` + `依据:<判据读数>`（M 级自升必填）。
 
-- [x] PID 定点化 + 控制移入 ADC ISR（起 2026-11-14 | 止 2026-11-14 | 验收 待人工） + 依据: 新增 algo_pid_q16（Q16 定点）；软浮点符号清零；Code 18870→16322；ISR 全程 12.87us avg/39.5us max（原 float 主循环 34.1us+ISR 5.6us）；7 种上升超调差≤0.18%、建立差≤2ms、稳态≤2mV；Keil 0E/0W；门禁 0 FAIL/0 WARN
+- [x] PID 定点化 + 控制移入 ADC ISR + 精度修复（起 2026-11-14 | 止 2026-11-14 | 验收 待人工） + 依据: algo_pid_q16（比例 Q16 / 积分 Q24，Q24 域合成单次取整）；软浮点清零；Code 16422；ISR 12.87us avg/39.5us max；7 种上升超调差≤0.18%、建立差≤2ms；抖动 sd 9.3→5.2mV（float 3.1-5.4）、CCR 波动 ±1.5→±0.5 码、稳态误差 ±0.42→±0.22mV；0E/0W；门禁 0 FAIL
 - [x] 新增 KEY1 输出开关 / KEY2 档位切换（起 2026-11-13 | 止 2026-11-13 | 验收 待人工） + 依据: 新增 bsp_key.h/drv_key.c/app_key.c；上电 sp=3300 output=0 pv=0 CCR=0；KEY1 开→软启动至 3.3V、KEY2 循环 5/9/12V 回 3.3V、关输出时改档有效、KEY1 关→duty=0 电压回落；全程 fault=0；Keil 0E/0W Code=14074 ZI=3572；门禁 0 FAIL/0 WARN
 - [x] RTT 遥测 + 电压外环调参（起 2026-11-13 | 止 2026-11-13 | 验收 待人工） + 依据: 新增 drv_rtt/app_telemetry（1kHz CSV）；JLinkRTTLogger 采集无丢帧；四工作点 3.3/5/9/12V 超调 0.36–0.74%、建立 18–19ms、稳态误差≤4mV；3.3→12V 大阶跃（8.7V）超调 1.13%、建立 31ms、无 OVP；pid-tune good_enough=true failed_rules=[]；阶跃钩子已删、生产版 v1.7 烧录 verified；Keil 0E/0W Code=13606 ZI=3572
 

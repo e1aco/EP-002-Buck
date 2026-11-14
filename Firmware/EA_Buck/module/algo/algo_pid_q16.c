@@ -11,10 +11,13 @@
 #include "algo_pid_q16.h"
 
 /* ==== 模块常量 ==== */
-/* 积分系数 Q20 定标：delta_q16 = (ki_q * (e+e_last) * dt_us) >> 20
- * 推导：delta_real = ki*(e+e_last)/2*dt_us*1e-6；delta_q16 = delta_real*2^16
- *       => ki_q = ki * 1e-6/2 * 2^16 * 2^20 = ki * 0.032768 * 2^20 */
-#define ALGO_PID_Q16_KI_SHIFT   20
+/* 积分状态 Q24，积分系数 Q20 定标：
+ *   delta_real = ki*(e+e_last)/2*dt_us*1e-6
+ *   delta_q24  = delta_real * 2^24 = ki_q*(e+e_last)*dt_us >> 12
+ *   其中 ki_q = ki * 1e-6/2 * 2^16 * 2^20 = ki * 0.032768 * 2^20
+ * 用 Q24 而非 Q16：Q16 时单拍取整损失约 0.3%，累积后稳态误差偏正、CCR 偏高 */
+#define ALGO_PID_Q16_KI_SHIFT   12
+#define ALGO_PID_Q16_ITERM_SHIFT 24
 
 /* 比例系数 Q16 定标 */
 #define ALGO_PID_Q16_KP_SHIFT   16
@@ -69,12 +72,20 @@ int32_t ALGO_PID_Q16_Compute(algo_pid_q16_t *pid, int32_t input, uint32_t now_us
   int32_t output;
   uint32_t dt_us;
   int64_t num;
-  int32_t delta;
-  int32_t limit_min_q;
-  int32_t limit_max_q;
+  int64_t delta;
+  int64_t limit_min_q;
+  int64_t limit_max_q;
+  int64_t out_q24;
 
   error = pid->setpoint - input;
-  output = (int32_t)(((int64_t)pid->kp_q * (int64_t)error) >> ALGO_PID_Q16_KP_SHIFT);
+
+  limit_min_q = (int64_t)pid->out_min << ALGO_PID_Q16_ITERM_SHIFT;
+  limit_max_q = (int64_t)pid->out_max << ALGO_PID_Q16_ITERM_SHIFT;
+
+  /* P 项保留在 Q24 域，不提前取整：与积分项合成后只取整一次。
+   * 若 P、I 各自右移截断，小数部分被丢弃两次，稳态输出会出现 ±1 码抖动
+   * （float 版全程连续，无此问题） */
+  out_q24 = ((int64_t)pid->kp_q * (int64_t)error) << 8;
 
   if (pid->started != 0U)
   {
@@ -85,12 +96,10 @@ int32_t ALGO_PID_Q16_Compute(algo_pid_q16_t *pid, int32_t input, uint32_t now_us
     }
 
     num = (int64_t)pid->ki_q * (int64_t)(error + pid->last_error);
-    delta = (int32_t)((num * (int64_t)dt_us) >> ALGO_PID_Q16_KI_SHIFT);
+    delta = (num * (int64_t)dt_us) >> ALGO_PID_Q16_KI_SHIFT;
 
     pid->i_term_q += delta;
 
-    limit_min_q = pid->out_min << ALGO_PID_Q16_KP_SHIFT;
-    limit_max_q = pid->out_max << ALGO_PID_Q16_KP_SHIFT;
     if (pid->i_term_q < limit_min_q)
     {
       pid->i_term_q = limit_min_q;
@@ -104,21 +113,23 @@ int32_t ALGO_PID_Q16_Compute(algo_pid_q16_t *pid, int32_t input, uint32_t now_us
       /* 未越限，保持 */
     }
 
-    output += pid->i_term_q >> ALGO_PID_Q16_KP_SHIFT;
+    out_q24 += pid->i_term_q;
   }
 
-  if (output < pid->out_min)
+  if (out_q24 < limit_min_q)
   {
-    output = pid->out_min;
+    out_q24 = limit_min_q;
   }
-  else if (output > pid->out_max)
+  else if (out_q24 > limit_max_q)
   {
-    output = pid->out_max;
+    out_q24 = limit_max_q;
   }
   else
   {
     /* 未越限，保持 */
   }
+
+  output = (int32_t)(out_q24 >> ALGO_PID_Q16_ITERM_SHIFT);
 
   pid->last_error = error;
   pid->last_us = now_us;

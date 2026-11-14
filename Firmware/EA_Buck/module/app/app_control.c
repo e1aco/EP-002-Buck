@@ -500,11 +500,11 @@ void APP_CONTROL_Update(void)
 
       /* 无扰切换：外环积分预置为实测电流，内环预置为当前占空比 */
       s_pid_volt.setpoint = (int32_t)s_vref_mv;
-      s_pid_volt.i_term_q = iout_ma << 16;
+      s_pid_volt.i_term_q = (int64_t)iout_ma << 24;
       s_pid_volt.last_error = (int32_t)s_vref_mv - vout_mv;
       s_pid_volt.last_us = s_now_us;
       s_pid_volt.started = 1U;
-      s_pid_curr.i_term_q = duty_ccr << 16;
+      s_pid_curr.i_term_q = (int64_t)duty_ccr << 24;
       s_pid_curr.last_us = s_now_us;
       s_pid_curr.started = 1U;
     }
