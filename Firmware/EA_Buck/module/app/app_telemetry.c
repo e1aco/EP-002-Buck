@@ -11,11 +11,12 @@
 #include "drv_rtt.h"
 
 /* ==== 模块常量 ==== */
-/* 输出周期 1ms = 1kHz：电压环 fc≈50Hz、τ≈3.2ms，建立过程 10–16ms，
- * 1kHz 可给出 10–16 个点，足以定位超调峰值
- * @来源 memory CTRL_VOLT_KP=0.050 推导：fc=50Hz → τ=1/(2π×50)=3.18ms
- * 注：时序测量期间临时降为 1Hz，避免 40KB/s 遥测挤占 RTT 缓冲冲掉 [TM] 行 */
-#define APP_TELEMETRY_PERIOD_US 1000U
+/* 输出周期 100ms = 10Hz（生产版）：稳态趋势观测足够，ISR 开销降 100 倍
+ * @来源 本设计决策（2026-11-15 用户裁决）：1kHz 时每帧约 70 字节 → 70KB/s，
+ * 无客户端读取时 RTT 缓冲溢出、有客户端时占 CPU；10Hz → 0.7KB/s
+ * 注：调试期若需定位超调峰值（电压环 fc≈50Hz、τ≈3.18ms，建立 10–16ms），
+ * 临时改回 1000U 即可恢复 1kHz 波形级观测 */
+#define APP_TELEMETRY_PERIOD_US 100000U
 
 /* 单行最长 62 字符（t 10 + sp 5 + pv 5 + ccr 4 + err 6 + kp 5 + ki 5
  * + d 1 + iout 6 + cascade 1 + fault 1 + output 1 + 12 个分隔符），留 72 字节余量
@@ -89,7 +90,7 @@ void APP_TELEMETRY_Init(void)
 }
 
 /**
- * @说明: 按 1kHz 节拍输出一行 CSV 遥测
+ * @说明: 按 10Hz 节拍输出一行 CSV 遥测
  * @输入: frame 本拍控制数据
  * @输出: 无
  * @注意: 未到节拍直接返回，调用开销仅为一次减法比较

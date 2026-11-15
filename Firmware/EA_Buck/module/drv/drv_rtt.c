@@ -14,6 +14,8 @@
 /* 遥测走 RTT 上行通道 0（J-Link RTTClient 默认读取的通道）
  * @来源 SEGGER_RTT.h p.405: SEGGER_RTT_Write(BufferIndex, pBuffer, NumBytes) */
 #define DRV_RTT_CHANNEL 0U
+/* 下行通道 0：主机 RTT Client 的键盘输入写到这里 */
+#define DRV_RTT_DOWN_CHANNEL 0U
 
 /* ==== 接口函数 ==== */
 /**
@@ -37,4 +39,16 @@ void DRV_RTT_Init(void)
 uint16_t DRV_RTT_Write(const char *text, uint16_t len)
 {
   return (uint16_t)SEGGER_RTT_Write(DRV_RTT_CHANNEL, text, (unsigned)len);
+}
+
+/**
+ * @说明: 从下行通道读取主机发来的命令字节（非阻塞，无数据返回 0）
+ * @输入: buf 接收缓冲；max_len 最大字节数
+ * @输出: 实际读到的字节数
+ * @注意: 缓冲为空立即返回 0，不会阻塞主循环
+ * @来源 SEGGER_RTT.h p.412: SEGGER_RTT_Read(BufferIndex, pBuffer, BufferSize)
+ */
+uint16_t DRV_RTT_Read(char *buf, uint16_t max_len)
+{
+  return (uint16_t)SEGGER_RTT_Read(DRV_RTT_DOWN_CHANNEL, buf, (unsigned)max_len);
 }

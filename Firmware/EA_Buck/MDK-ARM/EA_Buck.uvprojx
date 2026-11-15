@@ -555,6 +555,11 @@
               <FilePath>..\module\app\app_adc.c</FilePath>
             </File>
             <File>
+              <FileName>app_cmd.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\module\app\app_cmd.c</FilePath>
+            </File>
+            <File>
               <FileName>app_control.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\module\app\app_control.c</FilePath>
@@ -603,7 +608,8 @@
               <FileName>SEGGER_RTT.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\module\vendor\segger_rtt\SEGGER_RTT.c</FilePath>
-            </File></Files>
+            </File>
+          </Files>
         </Group>
         <Group>
           <GroupName>test</GroupName>

@@ -14,5 +14,6 @@
 
 void DRV_RTT_Init(void);
 uint16_t DRV_RTT_Write(const char *text, uint16_t len);
+uint16_t DRV_RTT_Read(char *buf, uint16_t max_len);
 
 #endif /* DRV_RTT_H */

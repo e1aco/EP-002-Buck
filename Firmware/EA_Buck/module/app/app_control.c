@@ -122,6 +122,17 @@
  * @来源 memory CTRL_CURRENT_VALID_DUTY=0.10 推导：0.10 × 3600 */
 #define APP_CONTROL_CURRENT_VALID_CCR  360
 
+/* 软关断：参考电压按软启动同一斜率降到 0，再停 PWM
+ * @来源 2026-11-15 实测：硬关断（占空比直接归零）在 12V 档激起 -5.84V 负向过冲，
+ *        10Ω 轻载阻尼比 ζ≈0.05（Q≈20），LC 振铃周期约 1.28ms
+ * @注 关断完成门限 300mV：此时电感电流已很小，停 PWM 不会再激起明显振铃
+ * @注 软关断时长 = Vtarget / 240mV/ms（3.3V≈14ms，12V≈50ms） */
+#define APP_CONTROL_STOP_VOUT_MV       300
+
+/* 软关断超时：空载时输出电容只能经负载/分压电阻泄放，vout 可能长时间降不到门限
+ * 10kHz × 3000 = 300ms，到点强制停 PWM（此时占空比早已为 0，停与不停都不激起振铃） */
+#define APP_CONTROL_STOP_TIMEOUT_CNT   3000U
+
 /* DWT 计数换算：us = cycles × 65536/72 >> 16（910/65536 = 0.01389 ≈ 1/72）
  * @来源 memory CLOCK_HCLK=72MHz 推导：65536/72 = 910.2 */
 #define APP_CONTROL_DWT_RECIP          910U
@@ -145,6 +156,8 @@ static uint8_t s_cascade;
 static volatile uint8_t s_fault;
 static volatile uint8_t s_ready;
 static volatile uint8_t s_output_on;
+static uint8_t s_stopping;      /* 1=软关断进行中：参考电压正在降到 0 */
+static uint16_t s_stop_cnt;     /* 软关断已进行的控制周期数（超时兜底） */
 static uint8_t s_oc_count;
 static uint8_t s_ovp_count;
 
@@ -257,6 +270,8 @@ void APP_CONTROL_Init(void)
   s_cascade = 0U;
   s_fault = 0U;
   s_output_on = 0U;
+  s_stopping = 0U;
+  s_stop_cnt = 0U;
   s_oc_count = 0U;
   s_ovp_count = 0U;
 
@@ -309,18 +324,30 @@ void APP_CONTROL_SetOutput(uint8_t on)
 {
   if (on == 0U)
   {
-    s_output_on = 0U;
-    s_vref_mv = 0U;
-    s_cascade = 0U;
-    ALGO_PID_Q16_Reset(&s_pid_start);
-    ALGO_PID_Q16_Reset(&s_pid_volt);
-    ALGO_PID_Q16_Reset(&s_pid_curr);
-    s_last_ccr = 0U;
-    DRV_TIM_SetDuty(0U);
+    if (s_output_on != 0U)
+    {
+      /* 软关断：不清 PID、不复位 cascade，让环路跟着参考电压一起降下来；
+       * 真正停 PWM 在 APP_CONTROL_Update 里 vref 到 0 且 vout 足够低时执行。
+       * 设定值 s_vref_target_mv **保持不变**，重新开启仍输出原设定电压 */
+      s_output_on = 0U;
+      s_stopping = 1U;
+      s_stop_cnt = 0U;
+    }
+    else if (s_stopping == 0U)
+    {
+      /* 本就是关闭态：确保占空比为 0 */
+      s_last_ccr = 0U;
+      DRV_TIM_SetDuty(0U);
+    }
+    else
+    {
+      /* 正在软关断，无需重复处理 */
+    }
   }
   else if (s_output_on == 0U)
   {
-    /* 从 0V 重新软启动，避免直接跳到设定值 */
+    /* 从 0V 重新软启动，避免直接跳到设定值；若正在软关断则取消 */
+    s_stopping = 0U;
     s_vref_mv = 0U;
     s_output_on = 1U;
   }
@@ -458,6 +485,7 @@ void APP_CONTROL_Update(void)
   int32_t duty_ccr;
   uint32_t dt_us;
   uint32_t slew_mv;
+  uint32_t target_mv;
 
   /* 初始化完成前不运行，避免访问未初始化状态 */
   if (s_ready == 0U)
@@ -485,8 +513,8 @@ void APP_CONTROL_Update(void)
     return;
   }
 
-  /* 输出关闭：占空比保持 0，仍推遥测便于观察输出电压回落 */
-  if (s_output_on == 0U)
+  /* 输出关闭且不在软关断过程：占空比保持 0，仍推遥测便于观察输出电压回落 */
+  if ((s_output_on == 0U) && (s_stopping == 0U))
   {
     if (s_last_ccr != 0U)
     {
@@ -505,23 +533,51 @@ void APP_CONTROL_Update(void)
     slew_mv = 1U;
   }
 
-  if (s_vref_mv < s_vref_target_mv)
+  /* 软关断时目标为 0，正常时为目标设定值；s_vref_target_mv 本身不被改动 */
+  target_mv = (s_stopping != 0U) ? 0U : s_vref_target_mv;
+
+  if (s_vref_mv < target_mv)
   {
     s_vref_mv += slew_mv;
-    if (s_vref_mv > s_vref_target_mv)
+    if (s_vref_mv > target_mv)
     {
-      s_vref_mv = s_vref_target_mv;
+      s_vref_mv = target_mv;
     }
   }
-  else if (s_vref_mv > s_vref_target_mv)
+  else if (s_vref_mv > target_mv)
   {
-    if ((s_vref_mv - s_vref_target_mv) > slew_mv)
+    if ((s_vref_mv - target_mv) > slew_mv)
     {
       s_vref_mv -= slew_mv;
     }
     else
     {
-      s_vref_mv = s_vref_target_mv;
+      s_vref_mv = target_mv;
+    }
+  }
+
+  /* 软关断完成：参考已到 0 且输出已降到位 → 此时电感电流很小，停 PWM 不再激起振铃。
+   * 超时兜底：空载时电容泄放慢，到点强制停（占空比早已为 0） */
+  if (s_stopping != 0U)
+  {
+    if (s_stop_cnt < APP_CONTROL_STOP_TIMEOUT_CNT)
+    {
+      s_stop_cnt++;
+    }
+
+    if (((s_vref_mv == 0U) && (vout_mv <= APP_CONTROL_STOP_VOUT_MV))
+        || (s_stop_cnt >= APP_CONTROL_STOP_TIMEOUT_CNT))
+    {
+      s_stopping = 0U;
+      s_cascade = 0U;
+      ALGO_PID_Q16_Reset(&s_pid_start);
+      ALGO_PID_Q16_Reset(&s_pid_volt);
+      ALGO_PID_Q16_Reset(&s_pid_curr);
+      s_last_ccr = 0U;
+      DRV_TIM_SetDuty(0U);
+
+      app_control_report(vout_mv, iout_ma, 0U);
+      return;
     }
   }
 

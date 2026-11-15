@@ -28,6 +28,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "app_adc.h"
+#include "app_cmd.h"
 #include "app_control.h"
 #include "app_display.h"
 #include "app_key.h"
@@ -106,6 +107,7 @@ int main(void)
   APP_TELEMETRY_Init();
   APP_DISPLAY_Init();
   APP_CONTROL_Init();
+  APP_CMD_Init();          /* RTT 命令通道：先设电压再开输出 */
   APP_KEY_Init();
   // TEST_TIM_Init();        // [CL_TIMING_MEASURE]
   APP_ADC_Init();
@@ -118,6 +120,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    APP_CMD_Task();
     APP_KEY_Task();
     APP_DISPLAY_Task();
     /* 控制已移入 ADC 完成中断（HAL_ADC_ConvCpltCallback → APP_CONTROL_Update） */
