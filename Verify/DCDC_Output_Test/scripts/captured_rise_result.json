@@ -1,0 +1,23 @@
+{
+  "status": "ok",
+  "action": "transient_rise",
+  "summary": "3.3V 开启：-0.12V → 3.19V，10%→90% = 0.164 ms，峰值 3.76 V（超调 17.17%），13.50 ms 建立",
+  "details": {
+    "capture_tdiv": 0.02,
+    "capture_delay": -0.002,
+    "cropped_window_ms": 26.67,
+    "npoints": 133349,
+    "metrics": {
+      "v_base": -0.115,
+      "v_top": 3.192,
+      "vmax": 3.76,
+      "overshoot_pct": 17.17,
+      "t10_ms": 0.019,
+      "t50_ms": 0.119,
+      "t90_ms": 0.183,
+      "rise_ms": 0.164,
+      "settle_ms": 13.5,
+      "slew_v_per_ms": 20114.126
+    }
+  }
+}

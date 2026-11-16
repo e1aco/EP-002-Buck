@@ -1,0 +1,32 @@
+{
+  "status": "ok",
+  "action": "transient_fall",
+  "summary": "3.3V 关断：3.21V → 最低 -2.31V，10%→90% = 0.220 ms，最大斜率 1661 V/ms，LC 1.37 ms（731 Hz），5.6 ms 归零",
+  "details": {
+    "vdiv": 1.0,
+    "voff": -0.5,
+    "tdiv": 0.002,
+    "delay": -0.002,
+    "window_ms": 20.0,
+    "npoints": 1000000,
+    "clip_pct": 0.0,
+    "pava": {
+      "min": -2.31,
+      "max": 3.77
+    },
+    "metrics": {
+      "v_top": 3.205,
+      "v_final": -0.117,
+      "vmin": -2.31,
+      "undershoot_v": -2.31,
+      "t10_ms": 0.023,
+      "t50_ms": 0.159,
+      "t90_ms": 0.244,
+      "fall_ms": 0.22,
+      "max_slew_v_per_ms": 1661.2,
+      "osc_period_ms": 1.368,
+      "osc_freq_hz": 731.0,
+      "settle_ms": 5.64
+    }
+  }
+}

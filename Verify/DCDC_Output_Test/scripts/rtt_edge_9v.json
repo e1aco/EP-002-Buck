@@ -1,0 +1,34 @@
+{
+  "rise": {
+    "v_base": -0.204,
+    "v_top": 8.857,
+    "vmax": 9.39,
+    "overshoot_pct": 5.88,
+    "t10_ms": 0.4,
+    "t50_ms": 19.801,
+    "t90_ms": 34.901,
+    "rise_ms": 34.501,
+    "settle_ms": 44.46,
+    "slew_v_per_ms": 262.633,
+    "clip_pct": 0.0
+  },
+  "fall": {
+    "v_top": 8.451,
+    "v_final": -0.535,
+    "vmin": -5.36,
+    "undershoot_v": -5.36,
+    "t10_ms": 0.035,
+    "t50_ms": 0.11,
+    "t90_ms": 0.146,
+    "fall_ms": 0.111,
+    "max_slew_v_per_ms": 16639.5,
+    "osc_period_ms": 1.316,
+    "osc_freq_hz": 760.1,
+    "settle_ms": 3.95,
+    "clip_pct": 0.0
+  },
+  "ripple": {
+    "pkpk_mv": 852.0,
+    "rms_mv": 40.5
+  }
+}

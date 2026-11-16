@@ -1,0 +1,24 @@
+{
+  "rise": {
+    "status": "fail"
+  },
+  "fall": {
+    "status": "ok",
+    "vdiv": 5.0,
+    "off": -1.3499999999999999,
+    "clip_pct": 0.0,
+    "耗时_s": 5.9,
+    "v_top": 8.605,
+    "v_final": -0.596,
+    "vmin": -5.28,
+    "undershoot_v": -5.28,
+    "t10_ms": 0.041,
+    "t50_ms": 0.12,
+    "t90_ms": 0.157,
+    "fall_ms": 0.116,
+    "max_slew_v_per_ms": 16729.4,
+    "osc_period_ms": 1.31,
+    "osc_freq_hz": 763.4,
+    "settle_ms": 1.94
+  }
+}
